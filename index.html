@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Word Search Highlight</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(10, 40px);
+      gap: 5px;
+      position: relative;
+      user-select: none;
+      width: max-content;
+      margin: 20px auto;
+    }
+
+    .cell {
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid #ddd;
+      font-size: 16px;
+      text-align: center;
+      position: relative;
+    }
+
+    .highlight {
+      position: absolute;
+      background-color: rgba(0, 120, 255, 0.4);
+      pointer-events: none;
+      transform-origin: left center;
+    }
+
+    .permanent-highlight {
+      background-color: rgba(0, 255, 100, 0.6);
+
+      pointer-events: none;
+    }
+
+    .words-list {
+      margin-top: 20px;
+    }
+
+    .words-list h2 {
+      margin-bottom: 10px;
+    }
+
+    .words-list ul {
+      list-style-type: none;
+      padding: 0;
+    }
+
+    .words-list li {
+      display: inline-block;
+      margin: 5px 10px;
+      padding: 5px 10px;
+      background: #f0f0f0;
+      border-radius: 5px;
+    }
+
+    .words-list li.found {
+      text-decoration: line-through;
+      background-color: #b2fab4;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Word Search Highlight</h1>
+  <div class="grid" id="grid"></div>
+  <div class="words-list" id="wordsList">
+    <h2>Words to Find</h2>
+    <ul id="wordsToFind"></ul>
+  </div>
+  <script>
+    const grid = document.getElementById('grid');
+    const wordsList = document.getElementById('wordsToFind');
+    const gridSize = 10;
+
+    // Generate a dummy 10x10 grid with random letters
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const gridData = [];
+    for (let i = 0; i < 10; i++) {
+      const row = [];
+      for (let j = 0; j < 10; j++) {
+        const cellValue = letters[Math.floor(Math.random() * letters.length)];
+        const cell = document.createElement('div');
+        cell.classList.add('cell');
+        cell.textContent = cellValue;
+        cell.dataset.row = i;
+        cell.dataset.col = j;
+        grid.appendChild(cell);
+        row.push(cellValue);
+      }
+      gridData.push(row);
+    }
+
+    // Extract words from rows, columns, and diagonals
+    const extractWords = (grid) => {
+      const words = [];
+
+      // Add rows
+      for (const row of grid) {
+        words.push(row.join(''));
+      }
+
+      // Add columns
+      for (let col = 0; col < gridSize; col++) {
+        let word = '';
+        for (let row = 0; row < gridSize; row++) {
+          word += grid[row][col];
+        }
+        words.push(word);
+      }
+
+      // Add diagonals
+      for (let d = 0; d < gridSize * 2 - 1; d++) {
+        let word1 = '';
+        let word2 = '';
+        for (let row = 0; row < gridSize; row++) {
+          const col1 = d - row;
+          const col2 = gridSize - 1 - d + row;
+
+          if (col1 >= 0 && col1 < gridSize) word1 += grid[row][col1];
+          if (col2 >= 0 && col2 < gridSize) word2 += grid[row][col2];
+        }
+        if (word1.length > 1) words.push(word1);
+        if (word2.length > 1) words.push(word2);
+      }
+
+      return words;
+    };
+
+    const wordsToFind = extractWords(gridData).slice(0, 10); // Select 10 words to find
+    wordsToFind.forEach((word) => {
+      const li = document.createElement('li');
+      li.textContent = word;
+      wordsList.appendChild(li);
+    });
+
+
+    // Variables for tracking mouse events
+    let startX, startY, highlight, selectedCells;
+
+    grid.addEventListener('mousedown', (e) => {
+      // Ensure the click is within the grid's child elements (cells)
+      if (!e.target.classList.contains('cell')) return;
+
+      const rect = grid.getBoundingClientRect();
+      startX = e.clientX - rect.left;
+      startY = e.clientY - rect.top;
+
+      // Remove any existing temporary highlight
+      if (highlight) {
+        highlight.remove();
+      }
+
+      // Initialize selected cells tracking
+      selectedCells = [];
+
+      // Create a new highlight element
+      highlight = document.createElement('div');
+      highlight.classList.add('highlight');
+      highlight.style.left = `${startX}px`;
+      highlight.style.top = `${startY}px`;
+      grid.appendChild(highlight);
+    });
+
+    grid.addEventListener('mousemove', (e) => {
+      if (!highlight) return;
+
+      const rect = grid.getBoundingClientRect();
+      const currentX = e.clientX - rect.left;
+      const currentY = e.clientY - rect.top;
+
+      const width = Math.sqrt(
+        (currentX - startX) ** 2 + (currentY - startY) ** 2
+      );
+
+      const angle = Math.atan2(currentY - startY, currentX - startX) * (180 / Math.PI);
+
+      highlight.style.width = `${width}px`;
+      highlight.style.height = '20px';
+      highlight.style.transform = `rotate(${angle}deg)`;
+
+      // Calculate grid cell position
+      const cellX = Math.floor(currentX / 45); // Include gap calculation
+      const cellY = Math.floor(currentY / 45);
+
+      if (
+        cellX >= 0 &&
+        cellX < gridSize &&
+        cellY >= 0 &&
+        cellY < gridSize &&
+        !selectedCells.some((cell) => cell.row === cellY && cell.col === cellX)
+      ) {
+        // Only add unique cells to selectedCells
+        selectedCells.push({
+          row: cellY,
+          col: cellX,
+          value: gridData[cellY][cellX],
+        });
+      }
+    });
+
+    grid.addEventListener('mouseup', () => {
+      if (!highlight) return;
+
+      const selectedWord = selectedCells.map((cell) => cell.value).join('');
+
+      if (wordsToFind.includes(selectedWord)) {
+        //console.log(`Matched: ${selectedWord}`);
+
+        //console.log("selectedCells :- ", selectedCells)
+        // Add the permanent-highlight class to the matched cells
+        selectedCells.forEach((cell) => {
+          const gridCell = document.querySelector(`.cell[data-row="${cell.row}"][data-col="${cell.col}"]`);
+
+          console.log("gridCell :- ", gridCell)
+          if (gridCell) {
+            console.log(gridCell.classList)
+            gridCell.classList.add('permanent-highlight');
+          }
+        });
+
+        // Cleanup the current highlight div
+        highlight.remove();
+      } else {
+        // Remove the temporary highlight if the word doesn't match
+        highlight.remove();
+      }
+
+      // Reset highlight and selected cells for the next selection
+      highlight = null;
+      selectedCells = [];
+    });
+  </script>
+</body>
+
+</html>
